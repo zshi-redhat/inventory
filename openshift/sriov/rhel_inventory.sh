@@ -82,6 +82,7 @@ TOTALVFS=$(cat /sys/bus/pci/devices/$DEVICE_PCI/sriov_totalvfs)
 
 dump-device-data () {
 	echo
+	echo_data "Hostname: `hostname`"
 	echo_data "Name: $DEVICE"
 	echo_data "Driver: $DRIVER"
 	echo_data "PCI: $DEVICE_PCI"
@@ -120,6 +121,12 @@ VF_DEVICE_INFO=$(lspci -v -nn -mm -s $VF_DEVICE_PCI)
 
 dump-vf-data
 
+# Configure VF0 effective and admin MAC
+echo_and_eval "ip link set $DEVICE vf 0 mac 00:11:22:33:44:55"
+echo_and_eval "ip link set dev ${DEVICE}v0 address 00:11:22:33:44:55"
+echo_and_eval "ip link show $DEVICE"
+echo_and_eval "ip link show ${DEVICE}v0"
+
 # Configure VF0 attrs
 echo_and_eval "ip link set $DEVICE vf 0 spoofchk off"
 echo_and_eval "ip link set $DEVICE vf 0 state enable"
@@ -138,12 +145,6 @@ if [ "$TX_MIN_RATE" = "true" ];then
 	echo_and_eval "ip link set $DEVICE vf 0 min_tx_rate 0"
 fi
 echo_and_eval "ip link show $DEVICE"
-
-# Configure VF0 effective and admin MAC
-echo_and_eval "ip link set $DEVICE vf 0 mac 00:11:22:33:44:55"
-echo_and_eval "ip link set dev ${DEVICE}v0 address 00:11:22:33:44:55"
-echo_and_eval "ip link show $DEVICE"
-echo_and_eval "ip link show ${DEVICE}v0"
 
 # Reset numvfs
 echo_and_eval "echo 0 > /sys/bus/pci/devices/$DEVICE_PCI/sriov_numvfs"
