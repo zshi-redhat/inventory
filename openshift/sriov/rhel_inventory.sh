@@ -128,6 +128,7 @@ echo_and_eval "ip link show $DEVICE"
 echo_and_eval "ip link show ${DEVICE}v0"
 
 # Configure VF0 attrs
+echo_and_eval "ip link set $DEVICE vf 0 vlan 100 qos 1"
 echo_and_eval "ip link set $DEVICE vf 0 spoofchk off"
 echo_and_eval "ip link set $DEVICE vf 0 state enable"
 echo_and_eval "ip link set $DEVICE vf 0 trust on"
@@ -137,6 +138,7 @@ if [ "$TX_MIN_RATE" = "true" ];then
 fi
 echo_and_eval "ip link show $DEVICE"
 
+echo_and_eval "ip link set $DEVICE vf 0 vlan 0 qos 0"
 echo_and_eval "ip link set $DEVICE vf 0 spoofchk on"
 echo_and_eval "ip link set $DEVICE vf 0 state disable"
 echo_and_eval "ip link set $DEVICE vf 0 trust off"
