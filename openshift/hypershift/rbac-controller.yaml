@@ -3,13 +3,13 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: ovn-kubernetes-controller-guest
-  namespace: hypershift-ovn
+  namespace: clusters-ovn-hypershift
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: hypershift-ovn-kubernetes-controller-guest
+  name: clusters-ovn-hypershift-kubernetes-controller-guest
 rules:
 - apiGroups: [""]
   resources:
@@ -119,22 +119,22 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: hypershift-ovn-kubernetes-controller-guest
+  name: clusters-ovn-hypershift-kubernetes-controller-guest
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: hypershift-ovn-kubernetes-controller-guest
+  name: clusters-ovn-hypershift-kubernetes-controller-guest
 subjects:
 - kind: ServiceAccount
   name: ovn-kubernetes-controller-guest
-  namespace: hypershift-ovn
+  namespace: clusters-ovn-hypershift
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: hypershift-ovn-kubernetes-sbdb-guest
-  namespace: hypershift-ovn
+  name: clusters-ovn-hypershift-kubernetes-sbdb-guest
+  namespace: clusters-ovn-hypershift
 rules:
 - apiGroups: [""]
   resources:
@@ -148,13 +148,13 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: hypershift-ovn-kubernetes-sbdb-guest
-  namespace: hypershift-ovn
+  name: clusters-ovn-hypershift-kubernetes-sbdb-guest
+  namespace: clusters-ovn-hypershift
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: hypershift-ovn-kubernetes-sbdb-guest
+  name: clusters-ovn-hypershift-kubernetes-sbdb-guest
 subjects:
 - kind: ServiceAccount
   name: ovn-kubernetes-controller-guest
-  namespace: hypershift-ovn
+  namespace: clusters-ovn-hypershift

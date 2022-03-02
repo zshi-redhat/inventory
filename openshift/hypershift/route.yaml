@@ -1,0 +1,15 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: ovnkube-sbdb
+  namespace: clusters-ovn-hypershift
+spec:
+  host: ovnkube-sbdb-clusters-ovn-hypershift.apps.zshi-2022-03-02-management.devcluster.openshift.com
+  port:
+    targetPort: 9642
+  tls:
+    insecureEdgeTerminationPolicy: None
+    termination: passthrough
+  to:
+    kind: Service
+    name: ovnkube-master-guest

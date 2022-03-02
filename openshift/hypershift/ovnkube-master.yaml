@@ -5,7 +5,7 @@ apiVersion: policy/v1beta1
 kind: PodDisruptionBudget
 metadata:
   name: ovn-raft-quorum-guard
-  namespace: hypershift-ovn
+  namespace: clusters-ovn-hypershift
 spec:
   minAvailable: 2
   selector:
@@ -17,7 +17,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: ovnkube-master-guest
-  namespace: hypershift-ovn
+  namespace: clusters-ovn-hypershift
   labels:
     app: ovnkube-master-guest
 spec:
@@ -49,7 +49,7 @@ kind: StatefulSet
 apiVersion: apps/v1
 metadata:
   name: ovnkube-master-guest
-  namespace: hypershift-ovn
+  namespace: clusters-ovn-hypershift
   annotations:
     kubernetes.io/description: |
       This daemonset launches the ovn-kubernetes controller (master) networking components.
@@ -59,7 +59,19 @@ spec:
     matchLabels:
       app: ovnkube-master-guest
   serviceName: ovnkube-master-guest
-  replicas: 3
+  volumeClaimTemplates:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: datadir
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 1Gi
+      volumeMode: Filesystem
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -84,7 +96,7 @@ spec:
       containers:
       # ovn-northd: convert network objects in nbdb to flows in sbdb
       - name: northd
-        image: "quay.io/zshi/ovn-daemonset:dns-1"
+        image: "quay.io/zshi/ovn-daemonset:dns-3"
         command:
         - /bin/bash
         - -c
@@ -108,12 +120,12 @@ spec:
 
           echo "$(date -Iseconds) - starting ovn-northd"
           # namespace hosting guest ovnkube-master
-          ovn_kubernetes_namespace=hypershift-ovn
+          ovn_kubernetes_namespace=clusters-ovn-hypershift
 
           # statefulset pod names for ovnkube-master
-          master_0_hostname="ovnkube-master-guest-0.ovnkube-master-guest.hypershift-ovn.svc.cluster.local"
-          master_1_hostname="ovnkube-master-guest-1.ovnkube-master-guest.hypershift-ovn.svc.cluster.local"
-          master_2_hostname="ovnkube-master-guest-2.ovnkube-master-guest.hypershift-ovn.svc.cluster.local"
+          master_0_hostname="ovnkube-master-guest-0.ovnkube-master-guest.clusters-ovn-hypershift.svc.cluster.local"
+          master_1_hostname="ovnkube-master-guest-1.ovnkube-master-guest.clusters-ovn-hypershift.svc.cluster.local"
+          master_2_hostname="ovnkube-master-guest-2.ovnkube-master-guest.clusters-ovn-hypershift.svc.cluster.local"
 
           exec ovn-northd \
             --no-chdir "-vconsole:${OVN_LOG_LEVEL}" -vfile:off "-vPATTERN:console:${OVN_LOG_PATTERN_CONSOLE}" \
@@ -160,7 +172,7 @@ spec:
 
       # nbdb: the northbound, or logical network object DB. In raft mode 
       - name: nbdb
-        image: "quay.io/zshi/ovn-daemonset:dns-1"
+        image: "quay.io/zshi/ovn-daemonset:dns-3"
         command:
         - /bin/bash
         - -c
@@ -185,7 +197,7 @@ spec:
           bracketify() { case "$1" in *:*) echo "[$1]" ;; *) echo "$1" ;; esac }
 
           # initialize variables
-          ovn_kubernetes_namespace=hypershift-ovn
+          ovn_kubernetes_namespace=clusters-ovn-hypershift
           ovndb_ctl_ssl_opts="-p /ovn-cert/tls.key -c /ovn-cert/tls.crt -C /ovn-ca/ca-bundle.crt"
           transport="ssl"
           ovn_raft_conn_ip_url_suffix=""
@@ -202,7 +214,7 @@ spec:
             local port=${3}
             echo "Checking if ${pod} is part of cluster"
             # TODO: change to use '--request-timeout=5s', if https://github.com/kubernetes/kubernetes/issues/49343 is fixed. 
-            init_ip="${pod}.ovnkube-master-guest.hypershift-ovn.svc.cluster.local"
+            init_ip="${pod}.ovnkube-master-guest.clusters-ovn-hypershift.svc.cluster.local"
             if [[ $? != 0 ]]; then
               echo "Unable to get ${pod} ip "
               return 1
@@ -241,7 +253,7 @@ spec:
           # end of cluster_exists()
 
           OVN_ARGS="--db-nb-cluster-local-port=9643 \
-            --db-nb-cluster-local-addr=$(bracketify ${K8S_POD_NAME}.ovnkube-master-guest.hypershift-ovn.svc.cluster.local) \
+            --db-nb-cluster-local-addr=$(bracketify ${K8S_POD_NAME}.ovnkube-master-guest.clusters-ovn-hypershift.svc.cluster.local) \
             --no-monitor \
             --db-nb-cluster-local-proto=ssl \
             --ovn-nb-db-ssl-key=/ovn-cert/tls.key \
@@ -255,7 +267,7 @@ spec:
           fi
           echo "Found ${cluster_initiator_pod} ip: $cluster_initiator_ip"
           # CLUSTER_INITIATOR_IP="${cluster_initiator_ip}"
-          CLUSTER_INITIATOR_IP="ovnkube-master-guest-0.ovnkube-master-guest.hypershift-ovn.svc.cluster.local"
+          CLUSTER_INITIATOR_IP="ovnkube-master-guest-0.ovnkube-master-guest.clusters-ovn-hypershift.svc.cluster.local"
           echo "$(date -Iseconds) - starting nbdb  CLUSTER_INITIATOR_IP=${CLUSTER_INITIATOR_IP}"
           initial_raft_create=true
           initialize="false"
@@ -291,7 +303,7 @@ spec:
               wait $!
             else
               # either we need to initialize a new cluster or wait for master to create it
-              if [[ "${K8S_POD_NAME}.ovnkube-master-guest.hypershift-ovn.svc.cluster.local" == "${CLUSTER_INITIATOR_IP}" ]]; then
+              if [[ "${K8S_POD_NAME}.ovnkube-master-guest.clusters-ovn-hypershift.svc.cluster.local" == "${CLUSTER_INITIATOR_IP}" ]]; then
                 # set DB election timer at DB creation time if OVN supports it
                 election_timer=
                 if test -n "$(/usr/share/ovn/scripts/ovn-ctl --help 2>&1 | grep "\--db-nb-election-timer")"; then
@@ -332,10 +344,10 @@ spec:
               - -c
               - |
                 set -x
-                CLUSTER_INITIATOR_IP="ovnkube-master-guest-0.ovnkube-master-guest.hypershift-ovn.svc.cluster.local"
+                CLUSTER_INITIATOR_IP="ovnkube-master-guest-0.ovnkube-master-guest.clusters-ovn-hypershift.svc.cluster.local"
 
                 rm -f /var/run/ovn/ovnnb_db.pid
-                if [[ "${K8S_POD_NAME}.ovnkube-master-guest.hypershift-ovn.svc.cluster.local" == "${CLUSTER_INITIATOR_IP}" ]]; then
+                if [[ "${K8S_POD_NAME}.ovnkube-master-guest.clusters-ovn-hypershift.svc.cluster.local" == "${CLUSTER_INITIATOR_IP}" ]]; then
                   echo "$(date -Iseconds) - nbdb - postStart - waiting for master to be selected"
 
                   # set the connection and inactivity probe
@@ -367,9 +379,9 @@ spec:
                   fi
                 fi
                 #configure northd_probe_interval
-                master_0_hostname="ovnkube-master-guest-0.ovnkube-master-guest.hypershift-ovn.svc.cluster.local"
-                master_1_hostname="ovnkube-master-guest-1.ovnkube-master-guest.hypershift-ovn.svc.cluster.local"
-                master_2_hostname="ovnkube-master-guest-2.ovnkube-master-guest.hypershift-ovn.svc.cluster.local"
+                master_0_hostname="ovnkube-master-guest-0.ovnkube-master-guest.clusters-ovn-hypershift.svc.cluster.local"
+                master_1_hostname="ovnkube-master-guest-1.ovnkube-master-guest.clusters-ovn-hypershift.svc.cluster.local"
+                master_2_hostname="ovnkube-master-guest-2.ovnkube-master-guest.clusters-ovn-hypershift.svc.cluster.local"
 
                 OVN_NB_CTL="ovn-nbctl -p /ovn-cert/tls.key -c /ovn-cert/tls.crt -C /ovn-ca/ca-bundle.crt \
                 --db ssl:${master_0_hostname}:9641,ssl:${master_1_hostname}:9641,ssl:${master_2_hostname}:9641"
@@ -512,6 +524,8 @@ spec:
           requests:
             cpu: 10m
             memory: 20Mi
+        securityContext:
+          privileged: true
         terminationMessagePolicy: FallbackToLogsOnError
         volumeMounts:
         - name: ovn-master-metrics-cert
@@ -520,7 +534,7 @@ spec:
 
       # sbdb: The southbound, or flow DB. In raft mode
       - name: sbdb
-        image: "quay.io/zshi/ovn-daemonset:dns-1"
+        image: "quay.io/zshi/ovn-daemonset:dns-3"
         command:
         - /bin/bash
         - -c
@@ -545,7 +559,7 @@ spec:
           bracketify() { case "$1" in *:*) echo "[$1]" ;; *) echo "$1" ;; esac }
 
           # initialize variables
-          ovn_kubernetes_namespace=hypershift-ovn
+          ovn_kubernetes_namespace=clusters-ovn-hypershift
           ovndb_ctl_ssl_opts="-p /ovn-cert/tls.key -c /ovn-cert/tls.crt -C /ovn-ca/ca-bundle.crt"
           transport="ssl"
           ovn_raft_conn_ip_url_suffix=""
@@ -562,7 +576,7 @@ spec:
             local port=${3}
             echo "Checking if ${pod} is part of cluster"
             # TODO: change to use '--request-timeout=5s', if https://github.com/kubernetes/kubernetes/issues/49343 is fixed. 
-            init_ip="${pod}.ovnkube-master-guest.hypershift-ovn.svc.cluster.local"
+            init_ip="${pod}.ovnkube-master-guest.clusters-ovn-hypershift.svc.cluster.local"
             if [[ $? != 0 ]]; then
               echo "Unable to get ${pod} ip "
               return 1
@@ -601,7 +615,7 @@ spec:
           # end of cluster_exists()
 
           OVN_ARGS="--db-sb-cluster-local-port=9644 \
-            --db-sb-cluster-local-addr=$(bracketify ${K8S_POD_NAME}.ovnkube-master-guest.hypershift-ovn.svc.cluster.local) \
+            --db-sb-cluster-local-addr=$(bracketify ${K8S_POD_NAME}.ovnkube-master-guest.clusters-ovn-hypershift.svc.cluster.local) \
             --no-monitor \
             --db-sb-cluster-local-proto=ssl \
             --ovn-sb-db-ssl-key=/ovn-cert/tls.key \
@@ -615,7 +629,7 @@ spec:
           fi
           echo "Found ${cluster_initiator_pod} ip: $cluster_initiator_ip"
           # CLUSTER_INITIATOR_IP="${cluster_initiator_ip}"
-          CLUSTER_INITIATOR_IP="ovnkube-master-guest-0.ovnkube-master-guest.hypershift-ovn.svc.cluster.local"
+          CLUSTER_INITIATOR_IP="ovnkube-master-guest-0.ovnkube-master-guest.clusters-ovn-hypershift.svc.cluster.local"
           echo "$(date -Iseconds) - starting sbdb  CLUSTER_INITIATOR_IP=${CLUSTER_INITIATOR_IP}"
           initial_raft_create=true
           initialize="false"
@@ -651,7 +665,7 @@ spec:
               wait $!
             else
               # either we need to initialize a new cluster or wait for master to create it
-              if [[ "${K8S_POD_NAME}.ovnkube-master-guest.hypershift-ovn.svc.cluster.local" == "${CLUSTER_INITIATOR_IP}" ]]; then
+              if [[ "${K8S_POD_NAME}.ovnkube-master-guest.clusters-ovn-hypershift.svc.cluster.local" == "${CLUSTER_INITIATOR_IP}" ]]; then
                 # set DB election timer at DB creation time if OVN supports it
                 election_timer=
                 if test -n "$(/usr/share/ovn/scripts/ovn-ctl --help 2>&1 | grep "\--db-sb-election-timer")"; then
@@ -689,10 +703,10 @@ spec:
               - -c
               - |
                 set -x
-                CLUSTER_INITIATOR_IP="ovnkube-master-guest-0.ovnkube-master-guest.hypershift-ovn.svc.cluster.local"
+                CLUSTER_INITIATOR_IP="ovnkube-master-guest-0.ovnkube-master-guest.clusters-ovn-hypershift.svc.cluster.local"
 
                 rm -f /var/run/ovn/ovnsb_db.pid
-                if [[ "${K8S_POD_NAME}.ovnkube-master-guest.hypershift-ovn.svc.cluster.local" == "${CLUSTER_INITIATOR_IP}" ]]; then
+                if [[ "${K8S_POD_NAME}.ovnkube-master-guest.clusters-ovn-hypershift.svc.cluster.local" == "${CLUSTER_INITIATOR_IP}" ]]; then
                   echo "$(date -Iseconds) - sdb - postStart - waiting for master to be selected"
 
                   # set the connection and inactivity probe
@@ -786,7 +800,7 @@ spec:
 
       # ovnkube master: convert kubernetes objects in to nbdb logical network components
       - name: ovnkube-master
-        image: "quay.io/zshi/ovn-daemonset:dns-1"
+        image: "quay.io/zshi/ovn-daemonset:dns-3"
         command:
         - /bin/bash
         - -c
@@ -801,9 +815,9 @@ spec:
           gateway_mode_flags="--gateway-mode shared --gateway-interface br-ex"
 
           # statefulset pod names for ovnkube-master
-          master_0_hostname="ovnkube-master-guest-0.ovnkube-master-guest.hypershift-ovn.svc.cluster.local"
-          master_1_hostname="ovnkube-master-guest-1.ovnkube-master-guest.hypershift-ovn.svc.cluster.local"
-          master_2_hostname="ovnkube-master-guest-2.ovnkube-master-guest.hypershift-ovn.svc.cluster.local"
+          master_0_hostname="ovnkube-master-guest-0.ovnkube-master-guest.clusters-ovn-hypershift.svc.cluster.local"
+          master_1_hostname="ovnkube-master-guest-1.ovnkube-master-guest.clusters-ovn-hypershift.svc.cluster.local"
+          master_2_hostname="ovnkube-master-guest-2.ovnkube-master-guest.clusters-ovn-hypershift.svc.cluster.local"
 
           # start nbctl daemon for caching
           echo "I$(date "+%m%d %H:%M:%S.%N") - ovnkube-master - start nbctl daemon for caching"
@@ -844,8 +858,6 @@ spec:
           preStop:
             exec:
               command: ["/bin/bash", "-c", "kill $(cat /var/run/ovn/ovn-nbctl.pid) && unset OVN_NB_DAEMON"]
-        securityContext:
-          privileged: true
         volumeMounts:
         - name: datadir
           mountPath: /var/run/ovn
@@ -859,13 +871,17 @@ spec:
           name: ovn-cert
         - mountPath: /ovn-ca
           name: ovn-ca
+        - mountPath: /etc/kube/config
+          name: ovn-kubeconfig
         resources:
           requests:
             cpu: 10m
             memory: 300Mi
+        securityContext:
+          privileged: true
         env:
         - name: OVN_KUBE_LOG_LEVEL
-          value: "4"
+          value: "5"
         - name: K8S_NODE
           valueFrom:
             fieldRef:
@@ -874,7 +890,7 @@ spec:
 
       # ovn-dbchecker: monitor clustered ovn databases for db health and stale raft members
       - name: ovn-dbchecker
-        image: "quay.io/zshi/ovn-daemonset:dns-1"
+        image: "quay.io/zshi/ovn-daemonset:dns-3"
         command:
         - /bin/bash
         - -c
@@ -887,9 +903,9 @@ spec:
           fi
 
           # statefulset pod names for ovnkube-master
-          master_0_hostname="ovnkube-master-guest-0.ovnkube-master-guest.hypershift-ovn.svc.cluster.local"
-          master_1_hostname="ovnkube-master-guest-1.ovnkube-master-guest.hypershift-ovn.svc.cluster.local"
-          master_2_hostname="ovnkube-master-guest-2.ovnkube-master-guest.hypershift-ovn.svc.cluster.local"
+          master_0_hostname="ovnkube-master-guest-0.ovnkube-master-guest.clusters-ovn-hypershift.svc.cluster.local"
+          master_1_hostname="ovnkube-master-guest-1.ovnkube-master-guest.clusters-ovn-hypershift.svc.cluster.local"
+          master_2_hostname="ovnkube-master-guest-2.ovnkube-master-guest.clusters-ovn-hypershift.svc.cluster.local"
 
           echo "I$(date "+%m%d %H:%M:%S.%N") - ovn-dbchecker - start ovn-dbchecker"
           exec /usr/bin/ovndbchecker \
@@ -907,8 +923,6 @@ spec:
             --nb-client-cacert /ovn-ca/ca-bundle.crt \
             --nb-cert-common-name "ovn" \
             --nb-raft-election-timer "10"
-        securityContext:
-          privileged: true
         volumeMounts:
         - name: datadir
           mountPath: /var/run/ovn
@@ -922,10 +936,14 @@ spec:
           name: ovn-cert
         - mountPath: /ovn-ca
           name: ovn-ca
+        - mountPath: /etc/kube/config
+          name: ovn-kubeconfig
         resources:
           requests:
             cpu: 10m
             memory: 300Mi
+        securityContext:
+          privileged: true
         env:
         - name: OVN_KUBE_LOG_LEVEL
           value: "4"
@@ -934,9 +952,9 @@ spec:
         node-role.kubernetes.io/worker: ""
         beta.kubernetes.io/os: "linux"
       volumes:
-      - name: datadir
-        persistentVolumeClaim:
-          claimName: pvc-host
+#      - name: datadir
+#        persistentVolumeClaim:
+#          claimName: pvc-host
       - name: ovnkube-config
         configMap:
           name: ovnkube-config
@@ -950,6 +968,9 @@ spec:
       - name: ovn-cert
         secret:
           secretName: ovn-cert
+      - name: ovn-kubeconfig
+        secret:
+          secretName: ovn-kubeconfig
       - name: ovn-master-metrics-cert
         secret:
           secretName: ovn-master-metrics-cert
