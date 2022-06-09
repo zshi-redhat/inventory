@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: testpod-macvlan
+  namespace: default
+  annotations:
+    k8s.v1.cni.cncf.io/networks: '[
+      {
+        "name": "macvlan",
+        "ips": ["10.10.10.1/24"],
+        "mac": "CA:FE:C0:FF:EE:03"
+      }
+    ]'
+spec:
+  containers:
+  - name: appcntr1
+    image: quay.io/zshi/centos:ovn
+    imagePullPolicy: IfNotPresent
+    securityContext:
+      privileged: true
+    command: [ "/bin/bash", "-c", "--" ]
+    args: [ "while true; do sleep 300000; done;" ]
