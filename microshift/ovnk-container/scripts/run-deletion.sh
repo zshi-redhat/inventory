@@ -19,7 +19,14 @@ kill $pid
 
 oc delete -f deployment.yaml
 
+rcs=$(oc get ReplicaSet)
+while read -r rc; do
+	n=$(echo $rc | awk -F" " '{print $1}')
+	echo $n
+	oc delete ReplicaSet $n
+done <<< $rcs
+
 echo "\n"
 echo "CPU & MEM utilization:"
 echo "\n"
-./cal.sh "data"
+#./cal.sh "data"

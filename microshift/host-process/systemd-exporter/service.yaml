@@ -1,0 +1,39 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    k8s-app: systemd-exporter
+  name: systemd-exporter
+  namespace: monitoring
+spec:
+  endpoints:
+  - interval: 1s
+    port: metrics
+    scheme: http
+  jobLabel: app
+  namespaceSelector:
+    matchNames:
+    - monitoring
+  selector:
+    matchLabels:
+      k8s-app: systemd-exporter
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    k8s-app: systemd-exporter
+  name: systemd-exporter
+  namespace: monitoring
+spec:
+  selector:
+    k8s-app: systemd-exporter
+  clusterIP: None
+  ports:
+  - name: metrics
+    port: 9558
+    protocol: TCP
+    targetPort: 9558
+  sessionAffinity: None
+  type: ClusterIP

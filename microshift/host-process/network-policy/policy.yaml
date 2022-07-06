@@ -1,0 +1,55 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-db
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      role: db
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+  - from:
+      - podSelector:
+          matchLabels:
+            role: frontend
+    ports:
+      - protocol: TCP
+        port: 5201
+  egress:
+  - to:
+      - ipBlock:
+          cidr: 10.128.0.0/24
+    ports:
+      - protocol: TCP
+        port: 5201
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-client
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      role: client
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+  - from:
+      - podSelector:
+          matchLabels:
+            role: frontend
+    ports:
+      - protocol: TCP
+        port: 5201
+  egress:
+  - to:
+      - ipBlock:
+          cidr: 10.128.0.0/24
+    ports:
+      - protocol: TCP
+        port: 5201

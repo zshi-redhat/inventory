@@ -2,17 +2,17 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: testdeploy
+  name: deploy
 spec:
   replicas: 10
   revisionHistoryLimit: 0
   selector:
     matchLabels:
-      name: app
+      role: client
   template:
     metadata:
       labels:
-        name: app
+        role: client
     spec:
       containers:
       - name: app
